@@ -1,0 +1,26 @@
+{
+  "name": "rockpaper",
+  "version": "1.0.0",
+  "description": "Alice and Bob play the classic rock paper scissors game. to enrol, each player needs to deposit the right Ether amount, possibly zero. to play, each player submits their unique move. the contract decides and rewards the winner with all Ether wagered. Of course there are many ways to implement it so we leave to yourselves to invent.",
+  "main": "truffle-config.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/allbabel/rockpaper.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/allbabel/rockpaper/issues"
+  },
+  "homepage": "https://github.com/allbabel/rockpaper#readme",
+  "devDependencies": {
+    "truffle": "^5.0.18",
+    "truffle-assertions": "^0.9.0"
+  }
+}
