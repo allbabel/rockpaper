@@ -2,14 +2,21 @@ pragma solidity 0.5.0;
 import "./Running.sol";
 import "./SafeMath.sol";
 
-using SafeMath for uint256;
+pragma solidity 0.5.0;
 
 contract RockPaper is Running
 {
+    using SafeMath for uint256;
     mapping(address => uint) public winnings;
     mapping(address => Game) public games;
 
     enum Guess {NONE, ROCK, PAPER, SCISSORS}
+    Guess[3][3] matrix =
+    [
+        [Guess.NONE, Guess.PAPER, Guess.ROCK],
+        [Guess.PAPER, Guess.NONE, Guess.SCISSORS],
+        [Guess.ROCK, Guess.SCISSORS, Guess.NONE]
+    ];
 
     struct Game
     {
@@ -64,7 +71,7 @@ contract RockPaper is Running
         public
         payable
     {
-        Game memory g = games[game];
+        Game storage g = games[game];
         require(g.player1 != address(0x0), "Game doesn't exists");
         require(guess > uint8(Guess.NONE) && guess <= uint8(Guess.SCISSORS), 'Bad guess');
 
@@ -80,24 +87,53 @@ contract RockPaper is Running
     function settleGame(uint8 guess, bytes32 seed)
         public
     {
-        Game g = games[msg.sender];
+        Game storage g = games[msg.sender];
+        require(validGame(g), 'Not a valid game');
         require(g.player1 == msg.sender, 'Not your game');
         require(uint(seed) != 0, 'Invalid seed');
         require(g.guess1 == encodeGuess(guess, seed), 'Invalid guess');
 
-        // For the moment just send funds to player2
-        address winner = determineWinner(g);
+        address winner = determineWinner(g, guess);
         winnings[winner] = winnings[winner].add(g.wager);
         delete games[msg.sender];
 
         emit LogGameSettled(g.player1, g.player2, winner, g.wager, g.guess1, g.guess2);
     }
 
-    function determineWinner(Game g)
+    function determineWinner(Game storage g, uint8 guess)
         private
+        view
         returns (address)
     {
-        // Check if valid game, TODO
-        return g.player2;
+        if (guess != g.guess2)
+        {
+            if (matrix[guess][g.guess2] == Guess(guess))
+            {
+                return g.player1;
+            }
+
+            return g.player2;
+        }
+
+        return address(0x0);
+    }
+
+    function validGame(Game storage g)
+        private
+        view
+        returns (bool)
+    {
+        return  validAddress(g.player1) &&
+                validAddress(g.player2) &&
+                uint(g.guess1) > 0 &&
+                g.guess2 > 0;
+    }
+
+    function validAddress(address addr)
+        private
+        pure
+        returns (bool)
+    {
+        return addr != address(0x0);
     }
 }
