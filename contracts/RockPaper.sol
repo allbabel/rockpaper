@@ -1,25 +1,28 @@
 pragma solidity 0.5.0;
 import "./Running.sol";
+import "./SafeMath.sol";
+
+using SafeMath for uint256;
 
 contract RockPaper is Running
 {
-    mapping(address=>uint) public balances;
-    
-    enum RESULT {NONE, ROCK, PAPER, SCISSORS}
+    mapping(address => uint) public winnings;
+    mapping(address => Game) public games;
 
-    struct Guess
+    enum Guess {NONE, ROCK, PAPER, SCISSORS}
+
+    struct Game
     {
         uint wager;
-        address user;
-        uint guess;
+        address player1;
+        bytes32 guess1;
+        address player2;
+        uint8 guess2;
     }
 
-    Guess[2] public game;
-
-    event LogDecision(uint g0, uint g1);
-    event LogGuess(uint index, uint guess);
-
-    uint number;
+    event LogGameCreated(address indexed player1, uint wager, bytes32 guess1);
+    event LogGameCompleted(address indexed player1, address indexed player2, uint wager, bytes32 guess1, uint8 guess2);
+    event LogGameSettled(address indexed player1, address indexed player2, address indexed winner, uint wager, bytes32 guess1, uint8 guess2);
 
     constructor()
         public
@@ -28,31 +31,73 @@ contract RockPaper is Running
 
     }
 
-    function makeGuess(uint _guess) public payable
+    // A player would need to pass this through to createGame()
+    function encodeGuess(uint8 guess, bytes32 seed)
+        public
+        pure
+        returns (bytes32)
     {
-        require(game[0].user != address(0x0) && game[1].user != address(0x0), 'Game in play');
-        Guess memory guess = Guess(msg.value, msg.sender, _guess);
-
-        if (game[0].user == address(0x0))
-        {
-            game[0] = guess;
-            emit LogGuess(0, guess.guess);
-        }
-        else
-        {
-            game[1] = guess;
-            
-            emit LogGuess(1, guess.guess);
-
-            uint g0 = game[0].guess ^ uint(game[0].user);
-            uint g1 = game[1].guess ^ uint(game[1].user);
-
-            emit LogDecision(g0, g1);
-        }
+        return keccak256(abi.encodePacked(Guess(guess), seed));
     }
 
-    function diff() public view returns (uint)
+    // A player creates a game, they send their guess encoded using encodeGuess
+    // They would send value, which is optional, this would create a game
+    function createGame(bytes32 guess)
+        public
+        payable
     {
-        return uint(msg.sender) ^ (uint(msg.sender) + uint(RESULT.PAPER));
+        require(games[msg.sender].player1 == address(0x0), 'Game already exists');
+        require(uint(guess) > 0, 'Invalid guess');
+
+        games[msg.sender] = Game( { wager: msg.value,
+                                    player1: msg.sender,
+                                    guess1: guess,
+                                    player2: address(0x0),
+                                    guess2: 0} );
+
+        emit LogGameCreated(msg.sender, msg.value, guess);
+    }
+
+    // A second player would join a game, the send a guess which isn't encoded
+    // They would also send value, which is optional, this would close the game
+    function joinGame(address game, uint8 guess)
+        public
+        payable
+    {
+        Game memory g = games[game];
+        require(g.player1 != address(0x0), "Game doesn't exists");
+        require(guess > uint8(Guess.NONE) && guess <= uint8(Guess.SCISSORS), 'Bad guess');
+
+        g.player2 = msg.sender;
+        g.guess2 = guess;
+
+        emit LogGameCompleted(g.player1, g.player2, g.wager, g.guess1, g.guess2);
+    }
+
+    // The game owner now has to settle the game, in other words reveals their guess to the network
+    // This is then checked with what they had guessed in creating the game
+    // There is a danger they will never settle the game and lock the funds.  TODO
+    function settleGame(uint8 guess, bytes32 seed)
+        public
+    {
+        Game g = games[msg.sender];
+        require(g.player1 == msg.sender, 'Not your game');
+        require(uint(seed) != 0, 'Invalid seed');
+        require(g.guess1 == encodeGuess(guess, seed), 'Invalid guess');
+
+        // For the moment just send funds to player2
+        address winner = determineWinner(g);
+        winnings[winner] = winnings[winner].add(g.wager);
+        delete games[msg.sender];
+
+        emit LogGameSettled(g.player1, g.player2, winner, g.wager, g.guess1, g.guess2);
+    }
+
+    function determineWinner(Game g)
+        private
+        returns (address)
+    {
+        // Check if valid game, TODO
+        return g.player2;
     }
 }
