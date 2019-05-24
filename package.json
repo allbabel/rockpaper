@@ -21,6 +21,6 @@
   "homepage": "https://github.com/allbabel/rockpaper#readme",
   "devDependencies": {
     "truffle": "^5.0.18",
-    "truffle-assertions": "^0.9.0"
+    "truffle-assertions": "^0.8.2"
   }
 }
