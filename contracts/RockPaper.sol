@@ -26,7 +26,7 @@ contract RockPaper is Running
         uint wager2;
     }
 
-    event LogGameCreated(address indexed player1, uint wager, bytes32 guess1);
+    event LogGameCreated(address indexed player1, uint wager1, bytes32 guess1);
 
     event LogGameCompleted( address indexed player1,
                             address indexed player2,
