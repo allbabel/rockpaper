@@ -68,7 +68,7 @@ contract RockPaper is Running
         payable
     {
         require(games[msg.sender].player1 == address(0x0), 'Game already exists');
-        require(uint(guess) > 0, 'Invalid guess');
+        require(guess != "", 'Invalid guess');
 
         games[msg.sender] = Game( { wager1: msg.value,
                                     player1: msg.sender,
@@ -106,8 +106,7 @@ contract RockPaper is Running
     {
         Game storage g = games[msg.sender];
         require(validGame(g), 'Not a valid game');
-        require(g.player1 == msg.sender, 'Not your game');
-        require(uint(seed) != 0, 'Invalid seed');
+        require(seed != "", 'Invalid seed');
         require(g.guess1 == encodeGuess(guess, seed), 'Invalid guess');
 
         address winner = determineWinner(g, guess);
@@ -156,7 +155,7 @@ contract RockPaper is Running
     {
         return  validAddress(g.player1) &&
                 validAddress(g.player2) &&
-                uint(g.guess1) > 0 &&
+                g.guess1 != "" &&
                 g.guess2 > 0;
     }
 
