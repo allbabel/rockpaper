@@ -157,6 +157,42 @@ contract('RockPaper', function(accounts) {
         assert.strictEqual(game.player1, "0x0000000000000000000000000000000000000000");
     });
 
+    it('Should after game be able to withdraw funds', async function() {
+
+        let encodedGuess = await instance.encodeGuess(Guess.ROCK, stringToHex(secret));
+        
+        var txObj1 = await instance.createGame(encodedGuess, {from: player1, value: valueToSend});
+
+        assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
+
+        var txObj2 = await instance.joinGame(player1, Guess.PAPER, {from: player2, value: valueToSend});
+
+        assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
+
+        var txObj3 = await instance.settleGame(Guess.ROCK, stringToHex(secret), {from: player1});
+
+        // We expect player 2 to win with PAPER
+        assert.strictEqual(txObj3.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj3.logs[0].event, 'LogGameSettled');
+
+        var txObj4 = await instance.withdrawWinnings({from: player2});
+
+        assert.strictEqual(txObj4.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj4.logs[0].event, 'LogWinningsWithdrawn');
+    
+        var contractBalance = await web3.eth.getBalance(instance.address);
+
+        assert.strictEqual(contractBalance.toString(), "0");
+    });
+
+    it('Should revert if no balance', async function() {
+        let fn = instance.withdrawWinnings({from: player1});
+        await truffleAssert.reverts(    fn, 
+                                        'No balance');    
+    });
+
     it('Should revert if settle game is called on an incomplete game', async function() {
         let encodedGuess = await instance.encodeGuess(Guess.ROCK, stringToHex(secret));
         
