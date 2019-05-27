@@ -44,6 +44,8 @@ contract RockPaper is Running
                             uint8 guess2);
 
     event LogGameDrawn(address indexed player1, address indexed player2);
+    
+    event LogWinningsWithdrawn(address indexed player, uint value);
 
     constructor()
         public
@@ -127,6 +129,18 @@ contract RockPaper is Running
 
         // End game
         delete games[msg.sender];
+    }
+
+    function withdrawWinnings()
+        public
+    {
+        require(winnings[msg.sender] > 0, 'No balance');
+        uint valueToSend = winnings[msg.sender];
+        winnings[msg.sender] = 0;
+
+        emit LogWinningsWithdrawn(msg.sender, valueToSend);
+
+        msg.sender.transfer(valueToSend);
     }
 
     function determineWinner(Game storage g, uint8 guess)
