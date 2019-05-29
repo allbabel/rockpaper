@@ -245,4 +245,98 @@ contract('RockPaper', function(accounts) {
         await truffleAssert.reverts(    fn, 
                                         'Invalid guess');
     });
+
+    it('Should provide correct winner for all combinations', async function() {
+
+        let rockGuess = await instance.encodeGuess(Guess.ROCK, stringToHex(secret));
+        let paperGuess = await instance.encodeGuess(Guess.PAPER, stringToHex(secret));
+        let scissorsGuess = await instance.encodeGuess(Guess.SCISSORS, stringToHex(secret));
+        
+        // Rock wins against scissors
+        var txObj1 = await instance.createGame(rockGuess, {from: player1, value: valueToSend});
+
+        assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
+
+        var txObj2 = await instance.joinGame(player1, Guess.SCISSORS, {from: player2, value: valueToSend});
+
+        assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
+
+        var txObj3 = await instance.settleGame(Guess.ROCK, stringToHex(secret), {from: player1});
+
+        assert.strictEqual(txObj3.logs[0].args.winner, player1);
+
+        // Rock loses against paper
+        txObj1 = await instance.createGame(rockGuess, {from: player1, value: valueToSend});
+
+        assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
+
+        txObj2 = await instance.joinGame(player1, Guess.PAPER, {from: player2, value: valueToSend});
+
+        assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
+
+        txObj3 = await instance.settleGame(Guess.ROCK, stringToHex(secret), {from: player1});
+        assert.strictEqual(txObj3.logs[0].args.winner, player2);
+
+        // Paper wins against rock
+        txObj1 = await instance.createGame(paperGuess, {from: player1, value: valueToSend});
+
+        assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
+
+        txObj2 = await instance.joinGame(player1, Guess.ROCK, {from: player2, value: valueToSend});
+
+        assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
+
+        txObj3 = await instance.settleGame(Guess.PAPER, stringToHex(secret), {from: player1});
+        assert.strictEqual(txObj3.logs[0].args.winner, player1);
+
+        // Paper loses against scissors
+        txObj1 = await instance.createGame(paperGuess, {from: player1, value: valueToSend});
+
+        assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
+
+        txObj2 = await instance.joinGame(player1, Guess.SCISSORS, {from: player2, value: valueToSend});
+
+        assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
+
+        txObj3 = await instance.settleGame(Guess.PAPER, stringToHex(secret), {from: player1});
+        assert.strictEqual(txObj3.logs[0].args.winner, player2);
+        
+        // Scissors wins against paper
+        txObj1 = await instance.createGame(scissorsGuess, {from: player1, value: valueToSend});
+
+        assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
+
+        txObj2 = await instance.joinGame(player1, Guess.PAPER, {from: player2, value: valueToSend});
+
+        assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
+
+        txObj3 = await instance.settleGame(Guess.SCISSORS, stringToHex(secret), {from: player1});
+        
+        assert.strictEqual(txObj3.logs[0].args.winner, player1);
+
+        // Scissors loses against rock
+        txObj1 = await instance.createGame(scissorsGuess, {from: player1, value: valueToSend});
+
+        assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
+
+        txObj2 = await instance.joinGame(player1, Guess.ROCK, {from: player2, value: valueToSend});
+
+        assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
+
+        txObj3 = await instance.settleGame(Guess.SCISSORS, stringToHex(secret), {from: player1});
+        
+        assert.strictEqual(txObj3.logs[0].args.winner, player2);
+    });
 });
