@@ -44,7 +44,7 @@ contract RockPaper is Running
                             uint8 guess2);
 
     event LogGameDrawn(address indexed player1, address indexed player2);
-    
+
     event LogWinningsWithdrawn(address indexed player, uint value);
 
     constructor()
@@ -57,10 +57,10 @@ contract RockPaper is Running
     // A player would need to pass this through to createGame()
     function encodeGuess(uint8 guess, bytes32 seed)
         public
-        pure
+        view
         returns (bytes32)
     {
-        return keccak256(abi.encodePacked(Guess(guess), seed));
+        return keccak256(abi.encodePacked(Guess(guess), seed, address(this)));
     }
 
     // A player creates a game, they send their guess encoded using encodeGuess
@@ -90,7 +90,7 @@ contract RockPaper is Running
     {
         Game storage g = games[game];
         require(g.player1 != address(0x0), "Game doesn't exists");
-        require(g.player1 != msg.sender, 'This is your game');
+        require(g.player1 != msg.sender, 'This is not your game');
         require(guess > uint8(Guess.NONE) && guess <= uint8(Guess.SCISSORS), 'Bad guess');
 
         g.player2 = msg.sender;
@@ -110,6 +110,8 @@ contract RockPaper is Running
         require(validGame(g), 'Not a valid game');
         require(seed != "", 'Invalid seed');
         require(g.guess1 == encodeGuess(guess, seed), 'Invalid guess');
+        require(Guess(guess) != Guess.NONE &&
+                Guess(g.guess2) != Guess.NONE, 'Invalid guess');
 
         address winner = determineWinner(g, guess);
         if (winner == address(0x0))
@@ -123,7 +125,7 @@ contract RockPaper is Running
         else
         {
             // Winner takes all
-            winnings[winner] = winnings[winner].add(g.wager1 + g.wager2);
+            winnings[winner] = winnings[winner].add(g.wager1).add(g.wager2);
             emit LogGameSettled(g.player1, g.player2, winner, g.wager1, g.wager2, g.guess1, g.guess2);
         }
 
@@ -150,7 +152,7 @@ contract RockPaper is Running
     {
         if (guess != g.guess2)
         {
-            if (rules[guess][g.guess2] == Guess(guess))
+            if (rules[guess - 1][g.guess2 - 1] == Guess(guess))
             {
                 return g.player1;
             }
