@@ -102,7 +102,7 @@ contract RockPaper is Running
 
     // A second player would join a game, they send a guess which isn't encoded
     // They would also send value, which should match the wager, this would close the game
-    function joinGameStorage(bytes32 gameId, Guess plainGuess)
+    function joinGame(bytes32 gameId, Guess plainGuess)
         public
         payable
         onlyValidGuess(plainGuess)
