@@ -226,19 +226,17 @@ contract('RockPaper', function(accounts) {
         assert.strictEqual(txObj4.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj4.logs[0].event, 'LogWinningsWithdrawn');
         assert.strictEqual(txObj4.logs[0].args.value.toString(), toBN(valueToSend).add(toBN(valueToSend)).toString());
-        contractBalance = await web3.eth.getBalance(instance.address);
+        let gasUsedToWithdraw = txObj4.receipt.gasUsed;
+        let txHashToWithdraw = await web3.eth.getTransaction(txObj4.receipt.transactionHash);
+        let txFeeToWithdraw = toBN(txHashToWithdraw.gasPrice * gasUsedToWithdraw);
 
+        // Check contract is cleared out
+        contractBalance = await web3.eth.getBalance(instance.address);
         assert.strictEqual(contractBalance, "0");
         
         let player2NewBalance = await web3.eth.getBalance(player2);
-        console.log(web3.utils.fromWei(player2Winnings.toString(), 'Ether'));
-        console.log(web3.utils.fromWei(player2Balance.toString(), 'Ether'));
-        console.log(web3.utils.fromWei(player2NewBalance.toString(), 'Ether'));
-        console.log(web3.utils.fromWei(valueToSend, 'Ether'));
-        console.log(web3.utils.fromWei(txFeeToJoin.toString(), 'Ether'));
-        
-        
-        assert.strictEqual(player2NewBalance, toBN(player2Balance).add(toBN(valueToSend)).add(toBN(valueToSend)).sub(txFeeToJoin).toString());
+        let expectedNewBalance = toBN(player2Balance).add(toBN(valueToSend)).sub(txFeeToJoin).sub(txFeeToWithdraw);
+        assert.strictEqual(player2NewBalance, expectedNewBalance.toString());
     });
 
     it('Should revert if no balance', async function() {
