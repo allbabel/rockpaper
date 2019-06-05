@@ -46,7 +46,6 @@ contract('RockPaper', function(accounts) {
         assert.strictEqual(gameObj.player1, player1);
         assert.strictEqual(gameObj.player2, player2);
         assert.strictEqual(gameObj.wager.toString(), valueToSend);
-        assert.strictEqual(gameObj.gameId, gameId);
         assert.strictEqual(gameObj.plainGuess2.toString(), "0");
     });
 
