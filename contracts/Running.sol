@@ -3,57 +3,69 @@ import "./Owned.sol";
 
 contract Running is Owned
 {
-    bool private running;
+    enum State {PAUSED, RUNNING, DEAD}
+    State state;
+    event LogPaused(address sender);
+    event LogRunning(address sender);
+    event LogKilled(address sender);
 
-    event LogRunningChanged(bool oldRunning, bool newRunning);
+    modifier whenAlive
+    {
+        require(state != State.DEAD, "We are not alive");
+        _;
+    }
 
     modifier whenRunning
     {
-        require(running, "We have stopped");
+        require(state == State.RUNNING, "We have stopped");
         _;
     }
 
     modifier whenPaused
     {
-        require(!running, "We are paused");
+        require(state == State.PAUSED, "We are paused");
         _;
     }
 
     constructor(bool _running) public
     {
-        running = _running;
+        state = (_running) ? State.RUNNING : State.PAUSED;
     }
 
-    function getRunning() public view returns(bool)
+    function getState()
+        public
+        view
+        whenAlive
+        returns(State)
     {
-        return running;
+        return state;
     }
 
     function pause() public
+        onlyOwner
         whenRunning
+        whenAlive
     {
-        setRunning(false);
+        state = State.PAUSED;
+        emit LogPaused(msg.sender);
     }
 
     function resume() public
+        onlyOwner
         whenPaused
+        whenAlive
     {
-        setRunning(true);
-    }
-
-    function setRunning(bool newRunning)
-        public
-        isOwner
-    {
-        emit LogRunningChanged(running, newRunning);
-        running = newRunning;
+        state = State.RUNNING;
+        emit LogRunning(msg.sender);
     }
 
     function kill()
         public
-        isOwner
+        onlyOwner
         whenPaused
+        whenAlive
     {
-        selfdestruct(msg.sender);
+        state = State.DEAD;
+        emit LogKilled(msg.sender);
     }
 }
