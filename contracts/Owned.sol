@@ -3,14 +3,14 @@ pragma solidity 0.5.0;
 contract Owned
 {
     address private owner;
-    event LogOwnerChanged(address indexed oldOwner, address indexed newOwner);
+    event LogOwnerChanged(address indexed sender, address indexed newOwner);
 
     constructor () public
     {
         owner = msg.sender;
     }
 
-    modifier isOwner
+    modifier onlyOwner
     {
         require(msg.sender == owner, "Owner permission required");
         _;
@@ -22,14 +22,14 @@ contract Owned
     }
 
     function changeOwner(address newOwner) public
-        isOwner
+        onlyOwner
         returns (bool success)
     {
         require(newOwner != address(0x0), 'Invalid newOwner');
         require(newOwner != owner, 'Same owner');
-        
-        emit LogOwnerChanged(owner, newOwner);
+
         owner = newOwner;
+        emit LogOwnerChanged(msg.sender, newOwner);
         return true;
     }
 }
