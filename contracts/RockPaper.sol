@@ -4,9 +4,9 @@ import "./SafeMath.sol";
 
 contract RockPaper is Running
 {
-    using SafeMath for uint256;
+    using SafeMath for uint;
     mapping(address => uint) public winnings;
-    mapping(address => Game) public games;
+    mapping(bytes32 => Game) public games;
 
     enum Guess {NONE, ROCK, PAPER, SCISSORS}
     Guess[3][3] rules =
@@ -19,33 +19,35 @@ contract RockPaper is Running
     struct Game
     {
         address player1;
-        bytes32 guess1;
-        uint wager1;
+        bytes32 gameId;
+        uint wager;
         address player2;
-        uint8 guess2;
-        uint wager2;
+        Guess plainGuess2;
     }
 
-    event LogGameCreated(address indexed player1, uint wager1, bytes32 guess1);
+    event LogGameCreated(   address indexed player1,
+                            address indexed player2,
+                            uint wager,
+                            bytes32 gameId);
 
     event LogGameCompleted( address indexed player1,
                             address indexed player2,
-                            uint wager1,
-                            uint wager2,
-                            bytes32 guess1,
-                            uint8 guess2);
+                            uint wager,
+                            bytes32 gameId,
+                            Guess plainGuess2);
 
     event LogGameSettled(   address indexed player1,
                             address indexed player2,
                             address indexed winner,
-                            uint wager1,
-                            uint wager2,
-                            bytes32 guess1,
-                            uint8 guess2);
+                            uint wager,
+                            bytes32 gameId,
+                            Guess plainGuess2);
 
-    event LogGameDrawn(address indexed player1, address indexed player2);
+    event LogGameDrawn( address indexed player1,
+                        address indexed player2);
 
-    event LogWinningsWithdrawn(address indexed player, uint value);
+    event LogWinningsWithdrawn( address indexed player,
+                                uint value);
 
     constructor()
         public
@@ -54,90 +56,127 @@ contract RockPaper is Running
 
     }
 
-    // A player would need to pass this through to createGame()
-    function encodeGuess(uint8 guess, bytes32 seed)
+    modifier onlyValidGuess(Guess guess)
+    {
+        require(guess > Guess.NONE && guess <= Guess.SCISSORS, 'Invalid guess');
+        _;
+    }
+
+    // A player would need to pass the game id through to startGame()
+    function createGameId(Guess plainGuess, bytes32 seed)
         public
         view
+        onlyValidGuess(plainGuess)
         returns (bytes32)
     {
-        return keccak256(abi.encodePacked(Guess(guess), seed, address(this)));
+        require(isValidBytes32(seed), 'Invalid seed');
+
+        return keccak256(abi.encodePacked(plainGuess, seed, address(this)));
     }
 
-    // A player creates a game, they send their guess encoded using encodeGuess
+    // A player starts a game on the chain, they send their guess encoded using encodeGuess
     // They would send value, which is optional, this would create a game
-    function createGame(bytes32 guess)
+    // msg.sender is set as player1, passes hashed guess, sets wager and player2
+
+    function startGame(bytes32 gameId, address player2)
         public
         payable
     {
-        require(games[msg.sender].player1 == address(0x0), 'Game already exists');
-        require(guess != "", 'Invalid guess');
+        // Check parameters
+        require(isValidBytes32(gameId), 'Invalid guess');
+        require(isValidAddress(player2), 'We need player2');
 
-        games[msg.sender] = Game( { wager1: msg.value,
+        // Player2 cannot be Player1
+        require(player2 != msg.sender, 'Player1 cannot be Player2');
+        // Look up game from storage, if we have player1 set the game exists
+        require(!isValidAddress(games[gameId].player1), 'Game already exists');
+
+        // Create game
+        games[gameId] = Game( { wager: msg.value,
                                     player1: msg.sender,
-                                    guess1: guess,
-                                    wager2: 0,
-                                    player2: address(0x0),
-                                    guess2: 0} );
+                                    gameId: gameId,
+                                    player2: player2,
+                                    plainGuess2: Guess.NONE} );
 
-        emit LogGameCreated(msg.sender, msg.value, guess);
+        // Emit event of game created
+        emit LogGameCreated(msg.sender, player2, msg.value, gameId);
     }
 
-    // A second player would join a game, the send a guess which isn't encoded
-    // They would also send value, which is optional, this would close the game
-    function joinGame(address game, uint8 guess)
+    // A second player would join a game, they send a guess which isn't encoded
+    // They would also send value, which should match the wager, this would close the game
+    function joinGame(bytes32 gameId, Guess plainGuess)
         public
         payable
+        onlyValidGuess(plainGuess)
     {
-        Game storage g = games[game];
-        require(g.player1 != address(0x0), "Game doesn't exists");
-        require(g.player1 != msg.sender, 'This is not your game');
-        require(guess > uint8(Guess.NONE) && guess <= uint8(Guess.SCISSORS), 'Bad guess');
+        // Check parameters
+        require(isValidBytes32(gameId), 'Invalid game');
 
-        g.player2 = msg.sender;
-        g.guess2 = guess;
-        g.wager2 = msg.value;
+        Game storage g = games[gameId];
+        // Only player2 can call this
+        require(g.player2 == msg.sender, 'You need to be player2 to set the guess');
+        // Is this game complete?
+        require(!isValidGame(g), 'Game is complete');
+        // Check wager matches
+        require(g.wager == msg.value, 'Wager does not match');
 
-        emit LogGameCompleted(g.player1, g.player2, g.wager1, g.wager2, g.guess1, g.guess2);
+        // Store plain guess for player2
+        g.plainGuess2 = plainGuess;
+
+        // Emit event of game being completed and now ready to be settled by player1
+        emit LogGameCompleted(g.player1, g.player2, g.wager, g.gameId, g.plainGuess2);
     }
 
     // The game owner now has to settle the game, in other words reveals their guess to the network
     // This is then checked with what they had guessed in creating the game
     // There is a danger they will never settle the game and lock the funds.  TODO
-    function settleGame(uint8 guess, bytes32 seed)
+    function settleGame(bytes32 gameId, Guess plainGuess, bytes32 seed)
         public
+        onlyValidGuess(plainGuess)
     {
-        Game storage g = games[msg.sender];
-        require(validGame(g), 'Not a valid game');
-        require(seed != "", 'Invalid seed');
-        require(g.guess1 == encodeGuess(guess, seed), 'Invalid guess');
-        require(Guess(guess) != Guess.NONE &&
-                Guess(g.guess2) != Guess.NONE, 'Invalid guess');
+        // Check parameters
+        require(isValidBytes32(seed), 'Invalid seed');
+        require(isValidBytes32(gameId), 'Invalid game');
 
-        address winner = determineWinner(g, guess);
-        if (winner == address(0x0))
+        Game storage g = games[gameId];
+        // Only player1 can settle the game
+        require(msg.sender == g.player1, 'Player1 needed to settle');
+        // Check if valid game that we can settle
+        require(isValidGame(g), 'Not a valid game');
+        // Check hashed guess
+        require(g.gameId == createGameId(plainGuess, seed), 'Invalid guess');
+
+        // Calculate winner
+        address winner = determineWinner(g, plainGuess);
+
+        if (isValidAddress(winner))
         {
-            // return wager to player1 and player2
-            winnings[g.player1] = winnings[g.player1].add(g.wager1);
-            winnings[g.player2] = winnings[g.player2].add(g.wager2);
-
-            emit LogGameDrawn(g.player1, g.player2);
+            // Winner takes all
+            winnings[winner] = winnings[winner].add(g.wager).add(g.wager);
+            emit LogGameSettled(g.player1, g.player2, winner, g.wager, g.gameId, g.plainGuess2);
         }
         else
         {
-            // Winner takes all
-            winnings[winner] = winnings[winner].add(g.wager1).add(g.wager2);
-            emit LogGameSettled(g.player1, g.player2, winner, g.wager1, g.wager2, g.guess1, g.guess2);
+            // return wager to player1 and player2
+            winnings[g.player1] = winnings[g.player1].add(g.wager);
+            winnings[g.player2] = winnings[g.player2].add(g.wager);
+
+            emit LogGameDrawn(g.player1, g.player2);
         }
 
-        // End game
-        delete games[msg.sender];
+        // Clear out game except player1 to lock the hash being used again in createGame()
+        g.gameId = "";
+        g.wager = 0;
+        g.player2 = address(0x0);
+        g.plainGuess2 = Guess.NONE;
     }
 
     function withdrawWinnings()
         public
     {
-        require(winnings[msg.sender] > 0, 'No balance');
-        uint valueToSend = winnings[msg.sender];
+        uint toWin = winnings[msg.sender];
+        require(toWin > 0, 'No balance');
+        uint valueToSend = toWin;
         winnings[msg.sender] = 0;
 
         emit LogWinningsWithdrawn(msg.sender, valueToSend);
@@ -145,14 +184,14 @@ contract RockPaper is Running
         msg.sender.transfer(valueToSend);
     }
 
-    function determineWinner(Game storage g, uint8 guess)
+    function determineWinner(Game storage g, Guess guess)
         private
         view
         returns (address)
     {
-        if (guess != g.guess2)
+        if (guess != g.plainGuess2)
         {
-            if (rules[guess - 1][g.guess2 - 1] == Guess(guess))
+            if (rules[uint(guess) - 1][uint(g.plainGuess2) - 1] == Guess(guess))
             {
                 return g.player1;
             }
@@ -164,22 +203,30 @@ contract RockPaper is Running
         return address(0x0);
     }
 
-    function validGame(Game storage g)
+    function isValidGame(Game storage g)
         private
         view
         returns (bool)
     {
-        return  validAddress(g.player1) &&
-                validAddress(g.player2) &&
-                g.guess1 != "" &&
-                g.guess2 > 0;
+        return  isValidAddress(g.player1) &&
+                isValidAddress(g.player2) &&
+                isValidBytes32(g.gameId) &&
+                uint(g.plainGuess2) > 0;
     }
 
-    function validAddress(address addr)
+    function isValidAddress(address addr)
         private
         pure
         returns (bool)
     {
         return addr != address(0x0);
+    }
+
+    function isValidBytes32(bytes32 b)
+        private
+        pure
+        returns (bool)
+    {
+        return b != "";
     }
 }
