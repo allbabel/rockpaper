@@ -255,7 +255,7 @@ contract('RockPaper', function(accounts) {
 
         let fn = instance.settleGame(gameId, Guess.ROCK, stringToHex(secret), {from: player1});
         await truffleAssert.reverts(    fn, 
-                                        'Not a valid game');
+                                        'Player2 has not submitted their move for this game');
     });
 
     it('Should revert if settle game is called by a stranger', async function() {

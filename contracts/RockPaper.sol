@@ -115,8 +115,8 @@ contract RockPaper is Running
         Game storage g = games[gameId];
         // Only player2 can call this
         require(g.player2 == msg.sender, 'You need to be player2 to set the guess');
-        // Is this game complete?
-        require(!isValidGame(g), 'Game is complete');
+        // Is this game valid?
+        require(g.plainGuess2 == Guess.NONE, 'Player2 already submitted their move for this game');
         // Check wager matches
         require(g.wager == msg.value, 'Wager does not match');
 
@@ -142,7 +142,7 @@ contract RockPaper is Running
         // Only player1 can settle the game
         require(msg.sender == g.player1, 'Player1 needed to settle');
         // Check if valid game that we can settle
-        require(isValidGame(g), 'Not a valid game');
+        require(g.plainGuess2 != Guess.NONE, 'Player2 has not submitted their move for this game');
         // Check hashed guess
         require(g.gameId == createGameId(plainGuess, seed), 'Invalid guess');
 
@@ -201,17 +201,6 @@ contract RockPaper is Running
 
         // A draw
         return address(0x0);
-    }
-
-    function isValidGame(Game storage g)
-        private
-        view
-        returns (bool)
-    {
-        return  isValidAddress(g.player1) &&
-                isValidAddress(g.player2) &&
-                isValidBytes32(g.gameId) &&
-                uint(g.plainGuess2) > 0;
     }
 
     function isValidAddress(address addr)
