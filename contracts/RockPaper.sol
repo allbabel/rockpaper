@@ -19,7 +19,6 @@ contract RockPaper is Running
     struct Game
     {
         address player1;
-        bytes32 gameId;
         uint wager;
         address player2;
         Guess plainGuess2;
@@ -94,7 +93,6 @@ contract RockPaper is Running
         // Create game
         games[gameId] = Game( { wager: msg.value,
                                     player1: msg.sender,
-                                    gameId: gameId,
                                     player2: player2,
                                     plainGuess2: Guess.NONE} );
 
@@ -119,14 +117,15 @@ contract RockPaper is Running
         require(g.plainGuess2 == Guess.NONE, 'Player2 already submitted their move for this game');
         // Check wager matches
         require(g.wager == msg.value, 'Wager does not match');
+        // Is this game complete?
+        require(!isValidGame(g), 'Game is complete');
 
         // Store plain guess for player2
         g.plainGuess2 = plainGuess;
 
         // Emit event of game being completed and now ready to be settled by player1
-        emit LogGameCompleted(g.player1, g.player2, g.wager, g.gameId, g.plainGuess2);
+        emit LogGameCompleted(g.player1, g.player2, g.wager, gameId, g.plainGuess2);
     }
-
     // The game owner now has to settle the game, in other words reveals their guess to the network
     // This is then checked with what they had guessed in creating the game
     // There is a danger they will never settle the game and lock the funds.  TODO
@@ -144,7 +143,7 @@ contract RockPaper is Running
         // Check if valid game that we can settle
         require(g.plainGuess2 != Guess.NONE, 'Player2 has not submitted their move for this game');
         // Check hashed guess
-        require(g.gameId == createGameId(plainGuess, seed), 'Invalid guess');
+        require(gameId == createGameId(plainGuess, seed), 'Invalid guess');
 
         // Calculate winner
         address winner = determineWinner(g, plainGuess);
@@ -153,7 +152,7 @@ contract RockPaper is Running
         {
             // Winner takes all
             winnings[winner] = winnings[winner].add(g.wager).add(g.wager);
-            emit LogGameSettled(g.player1, g.player2, winner, g.wager, g.gameId, g.plainGuess2);
+            emit LogGameSettled(g.player1, g.player2, winner, g.wager, gameId, g.plainGuess2);
         }
         else
         {
@@ -165,7 +164,6 @@ contract RockPaper is Running
         }
 
         // Clear out game except player1 to lock the hash being used again in createGame()
-        g.gameId = "";
         g.wager = 0;
         g.player2 = address(0x0);
         g.plainGuess2 = Guess.NONE;

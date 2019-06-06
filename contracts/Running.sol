@@ -44,7 +44,6 @@ contract Running is Owned
     function pause() public
         onlyOwner
         whenRunning
-        whenAlive
     {
         state = State.PAUSED;
         emit LogPaused(msg.sender);
