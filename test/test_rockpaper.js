@@ -4,6 +4,20 @@ const { toBN, stringToHex, toWei } = web3.utils;
 
 randomString = () => { return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);}
 
+const timeTravel = function (time) {
+    return new Promise((resolve, reject) => {
+      web3.currentProvider.send({
+        jsonrpc: "2.0",
+        method: "evm_increaseTime",
+        params: [time], // 86400 is num seconds in day
+        id: new Date().getTime()
+      }, (err, result) => {
+        if(err){ return reject(err) }
+        return resolve(result)
+      });
+    })
+}
+
 contract('RockPaper', function(accounts) {
 
     [contractOwner, player1, player2, stranger] = accounts;
@@ -31,7 +45,7 @@ contract('RockPaper', function(accounts) {
         
         let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
         
-        var txObj1 = await instance.startGame(gameId, player2, 0, {from: player1, value: valueToSend});
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
@@ -51,7 +65,7 @@ contract('RockPaper', function(accounts) {
 
     it('Should fail creating a game if guess invalid', async function() {
         
-        let fn = instance.startGame(stringToHex(''), player2, 0, {from: player1, value: valueToSend});
+        let fn = instance.startGame(stringToHex(''), player2, valueToSend, {from: player1, value: valueToSend});
         await truffleAssert.reverts(    fn, 
                                         'Invalid guess');
     });
@@ -60,11 +74,11 @@ contract('RockPaper', function(accounts) {
         
         let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
         
-        var txObj1 = await instance.startGame(gameId, player2, 0, {from: player1, value: valueToSend});
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
         
-        let fn = instance.startGame(gameId, player2, 0, {from: player1, value: valueToSend});
+        let fn = instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
         await truffleAssert.reverts(    fn, 
                                         'Game already exists');
     });
@@ -73,12 +87,12 @@ contract('RockPaper', function(accounts) {
         
         let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
         
-        var txObj1 = await instance.startGame(gameId, player2, 0, {from: player1, value: valueToSend});
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
 
-        var txObj2 = await instance.joinGame(gameId, Guess.PAPER, 0, {from: player2, value: valueToSend});
+        var txObj2 = await instance.joinGame(gameId, Guess.PAPER, valueToSend, {from: player2, value: valueToSend});
 
         assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
@@ -94,12 +108,12 @@ contract('RockPaper', function(accounts) {
 
         let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
 
-        var txObj1 = await instance.startGame(gameId, player2, 0, {from: player1, value: valueToSend});
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
 
-        var txObj2 = await instance.joinGame(gameId, Guess.PAPER, 0, {from: player2, value: valueToSend});
+        var txObj2 = await instance.joinGame(gameId, Guess.PAPER, valueToSend, {from: player2, value: valueToSend});
         
         assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
@@ -129,12 +143,12 @@ contract('RockPaper', function(accounts) {
     it('Should be unable to reuse the same hash twice', async function() {
         let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
         
-        var txObj1 = await instance.startGame(gameId, player2, 0, {from: player1, value: valueToSend});
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
 
-        var txObj2 = await instance.joinGame(gameId, Guess.PAPER, 0, {from: player2, value: valueToSend});
+        var txObj2 = await instance.joinGame(gameId, Guess.PAPER, valueToSend, {from: player2, value: valueToSend});
 
         assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
@@ -145,7 +159,7 @@ contract('RockPaper', function(accounts) {
         assert.strictEqual(txObj3.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj3.logs[0].event, 'LogGameSettled');
 
-        let fn = instance.startGame(gameId, player2, 0, {from: player1, value: valueToSend});
+        let fn = instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
         await truffleAssert.reverts(fn, 
                                     'Game already exists');
     });
@@ -153,12 +167,12 @@ contract('RockPaper', function(accounts) {
     it('Should settle game if a draw send funds back', async function() {
         let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
         
-        var txObj1 = await instance.startGame(gameId, player2, 0, {from: player1, value: valueToSend});
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
 
-        var txObj2 = await instance.joinGame(gameId, Guess.ROCK, 0, {from: player2, value: valueToSend});
+        var txObj2 = await instance.joinGame(gameId, Guess.ROCK, valueToSend, {from: player2, value: valueToSend});
 
         assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
@@ -189,12 +203,12 @@ contract('RockPaper', function(accounts) {
         
         let player2Balance = await web3.eth.getBalance(player2);
 
-        var txObj1 = await instance.startGame(gameId, player2, 0, {from: player1, value: valueToSend});
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
 
-        var txObj2 = await instance.joinGame(gameId, Guess.PAPER, 0, {from: player2, value: valueToSend});
+        var txObj2 = await instance.joinGame(gameId, Guess.PAPER, valueToSend, {from: player2, value: valueToSend});
 
         assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
@@ -242,12 +256,12 @@ contract('RockPaper', function(accounts) {
 
         let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
         
-        var txObj1 = await instance.startGame(gameId, player2, 0, {from: player1, value: valueToSend});
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
 
-        var txObj2 = await instance.joinGame(gameId, Guess.PAPER, 0, {from: player2, value: valueToSend});
+        var txObj2 = await instance.joinGame(gameId, Guess.PAPER, valueToSend, {from: player2, value: valueToSend});
 
         assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
@@ -269,7 +283,7 @@ contract('RockPaper', function(accounts) {
         assert.strictEqual(txObj4.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj4.logs[0].event, 'LogGameCreated');
 
-        var txObj5 = await instance.joinGame(gameId, Guess.PAPER, 0, {from: player1, value: player2Winnings});
+        var txObj5 = await instance.joinGame(gameId, Guess.PAPER, player2Winnings, {from: player1, value: player2Winnings});
 
         assert.strictEqual(txObj5.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj5.logs[0].event, 'LogGameCompleted');
@@ -292,13 +306,14 @@ contract('RockPaper', function(accounts) {
         gameId = await instance.createGameId(Guess.ROCK, newSecret);
 
         // Create wager with valueToSend from winnings and valueToSend from wallet
-        var txObj7 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
+        var txObj7 = await instance.startGame(gameId, player2, toBN(valueToSend).add(toBN(valueToSend)), {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj7.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj7.logs[0].event, 'LogGameCreated');
 
         // Match wager and join game
-        var txObj8 = await instance.joinGame(gameId, Guess.PAPER, 0, {from: player2, value: toBN(valueToSend).add(toBN(valueToSend)).toString()});
+        var txObj8 = await instance.joinGame(gameId, Guess.PAPER, toBN(valueToSend).add(toBN(valueToSend)), 
+                                                {from: player2, value: toBN(valueToSend).add(toBN(valueToSend))});
 
         assert.strictEqual(txObj8.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj8.logs[0].event, 'LogGameCompleted');
@@ -328,7 +343,7 @@ contract('RockPaper', function(accounts) {
     it('Should revert if settle game is called on an incomplete game', async function() {
         let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
         
-        var txObj1 = await instance.startGame(gameId, player2, 0, {from: player1, value: valueToSend});
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
@@ -341,12 +356,12 @@ contract('RockPaper', function(accounts) {
     it('Should revert if settle game is called by a stranger', async function() {
         let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
         
-        var txObj1 = await instance.startGame(gameId, player2, 0, {from: player1, value: valueToSend});
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
 
-        var txObj2 = await instance.joinGame(gameId, Guess.ROCK, 0, {from: player2, value: valueToSend});
+        var txObj2 = await instance.joinGame(gameId, Guess.ROCK, valueToSend, {from: player2, value: valueToSend});
 
         assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
@@ -360,12 +375,12 @@ contract('RockPaper', function(accounts) {
     it('Should revert if seed is wrong', async function() {
         let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
         
-        var txObj1 = await instance.startGame(gameId, player2, 0, {from: player1, value: valueToSend});
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
 
-        var txObj2 = await instance.joinGame(gameId, Guess.ROCK, 0, {from: player2, value: valueToSend});
+        var txObj2 = await instance.joinGame(gameId, Guess.ROCK, valueToSend, {from: player2, value: valueToSend});
 
         assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
@@ -382,12 +397,12 @@ contract('RockPaper', function(accounts) {
         let s_1 = stringToHex(randomString());
         let gameId_1 = await instance.createGameId(Guess.ROCK, s_1);
 
-        var txObj1 = await instance.startGame(gameId_1, player2, 0, {from: player1, value: valueToSend});
+        var txObj1 = await instance.startGame(gameId_1, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
 
-        var txObj2 = await instance.joinGame(gameId_1, Guess.SCISSORS, 0, {from: player2, value: valueToSend});
+        var txObj2 = await instance.joinGame(gameId_1, Guess.SCISSORS, valueToSend, {from: player2, value: valueToSend});
 
         assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
@@ -400,12 +415,12 @@ contract('RockPaper', function(accounts) {
         let s_2 = stringToHex(randomString());
         let gameId_2 = await instance.createGameId(Guess.ROCK, s_2);
         
-        txObj1 = await instance.startGame(gameId_2, player2, 0, {from: player1, value: valueToSend});
+        txObj1 = await instance.startGame(gameId_2, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
 
-        txObj2 = await instance.joinGame(gameId_2, Guess.PAPER, 0, {from: player2, value: valueToSend});
+        txObj2 = await instance.joinGame(gameId_2, Guess.PAPER, valueToSend, {from: player2, value: valueToSend});
 
         assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
@@ -417,12 +432,12 @@ contract('RockPaper', function(accounts) {
         let s_3 = stringToHex(randomString());
         let gameId_3 = await instance.createGameId(Guess.PAPER, s_3);
         
-        txObj1 = await instance.startGame(gameId_3, player2, 0, {from: player1, value: valueToSend});
+        txObj1 = await instance.startGame(gameId_3, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
 
-        txObj2 = await instance.joinGame(gameId_3, Guess.ROCK, 0, {from: player2, value: valueToSend});
+        txObj2 = await instance.joinGame(gameId_3, Guess.ROCK, valueToSend, {from: player2, value: valueToSend});
 
         assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
@@ -434,12 +449,12 @@ contract('RockPaper', function(accounts) {
         let s_4 = stringToHex(randomString());
         let gameId_4 = await instance.createGameId(Guess.PAPER, s_4);
         
-        txObj1 = await instance.startGame(gameId_4, player2, 0, {from: player1, value: valueToSend});
+        txObj1 = await instance.startGame(gameId_4, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
 
-        txObj2 = await instance.joinGame(gameId_4, Guess.SCISSORS, 0, {from: player2, value: valueToSend});
+        txObj2 = await instance.joinGame(gameId_4, Guess.SCISSORS, valueToSend, {from: player2, value: valueToSend});
 
         assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
@@ -451,12 +466,12 @@ contract('RockPaper', function(accounts) {
         let s_5 = stringToHex(randomString());
         let gameId_5 = await instance.createGameId(Guess.SCISSORS, s_5);
         
-        txObj1 = await instance.startGame(gameId_5, player2, 0, {from: player1, value: valueToSend});
+        txObj1 = await instance.startGame(gameId_5, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
 
-        txObj2 = await instance.joinGame(gameId_5, Guess.PAPER, 0, {from: player2, value: valueToSend});
+        txObj2 = await instance.joinGame(gameId_5, Guess.PAPER, valueToSend, {from: player2, value: valueToSend});
 
         assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
@@ -469,12 +484,12 @@ contract('RockPaper', function(accounts) {
         let s_6 = stringToHex(randomString());
         let gameId_6 = await instance.createGameId(Guess.SCISSORS, s_6);
         
-        txObj1 = await instance.startGame(gameId_6, player2, 0, {from: player1, value: valueToSend});
+        txObj1 = await instance.startGame(gameId_6, player2, valueToSend, {from: player1, value: valueToSend});
 
         assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
 
-        txObj2 = await instance.joinGame(gameId_6, Guess.ROCK, 0, {from: player2, value: valueToSend});
+        txObj2 = await instance.joinGame(gameId_6, Guess.ROCK, valueToSend, {from: player2, value: valueToSend});
 
         assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
         assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
@@ -482,5 +497,128 @@ contract('RockPaper', function(accounts) {
         txObj3 = await instance.settleGame(gameId_6, Guess.SCISSORS, s_6, {from: player1});
         
         assert.strictEqual(txObj3.logs[0].args.winner, player2);
+    });
+
+    it('Player 1 should be able to cancel the game after 1 day', async function() {
+
+        let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
+        
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
+
+        assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
+
+        // Wait one day and 1 second - player 1 can cancel
+        await timeTravel(86400 + 1); 
+        
+        var txObj2 = await instance.cancelGame(gameId, {from: player1});
+
+        assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj2.logs[0].event, 'LogGameCancelled');
+
+        // Check we have winnings for player1
+        let player1Winnings = await instance.winnings.call(player1);
+        assert.strictEqual(player1Winnings.toString(), valueToSend);
+    });
+
+    it('Player 2 should be able to cancel the game after 1 day after sending turn', async function() {
+
+        let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
+        
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
+
+        assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
+
+        var txObj2 = await instance.joinGame(gameId, Guess.SCISSORS, valueToSend, {from: player2, value: valueToSend});
+
+        assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
+
+        // Wait one day and 1 second - player 2 can cancel
+        await timeTravel(86400 + 1); 
+        
+        var txObj3 = await instance.cancelGame(gameId, {from: player2});
+
+        assert.strictEqual(txObj3.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj3.logs[0].event, 'LogGameCancelled');
+
+        // Check we have all the winnings for player2
+        let player2Winnings = await instance.winnings.call(player2);
+        assert.strictEqual(player2Winnings.toString(), toBN(valueToSend).add(toBN(valueToSend)).toString());
+    });
+
+    it('A stranger cannot cancel the game', async function() {
+
+        let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
+        
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
+
+        assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
+
+        var txObj2 = await instance.joinGame(gameId, Guess.SCISSORS, valueToSend, {from: player2, value: valueToSend});
+
+        assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
+
+        // Wait one day and 1 second
+        await timeTravel(86400 + 1); 
+        
+        var fn = instance.cancelGame(gameId, {from: stranger});
+
+        await truffleAssert.reverts(    fn,
+                                        'You have to be in the game to cancel it');
+    });
+
+    it('Player1 should not be able to cancel if player2 has taken their turn', async function() {
+
+        let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
+        
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
+
+        assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
+
+        var txObj2 = await instance.joinGame(gameId, Guess.SCISSORS, valueToSend, {from: player2, value: valueToSend});
+
+        assert.strictEqual(txObj2.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj2.logs[0].event, 'LogGameCompleted');
+
+        // Wait one day and 1 second
+        await timeTravel(86400 + 1); 
+        
+        var fn = instance.cancelGame(gameId, {from: player1});
+
+        await truffleAssert.reverts(    fn,
+                                        'You have to be in the game to cancel it');
+    });
+
+    it('Player2 should not be able to cancel if player2 has not taken their turn', async function() {
+
+        let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
+        
+        var txObj1 = await instance.startGame(gameId, player2, valueToSend, {from: player1, value: valueToSend});
+
+        assert.strictEqual(txObj1.logs.length, 1, 'We should have an event');
+        assert.strictEqual(txObj1.logs[0].event, 'LogGameCreated');
+
+        // Wait one day and 1 second
+        await timeTravel(86400 + 1); 
+        
+        var fn = instance.cancelGame(gameId, {from: player2});
+
+        await truffleAssert.reverts(fn,
+                                    'You have to be in the game to cancel it');
+    });
+
+    it('Should not be able to cancel a game that does not exist', async function() {
+
+        let gameId = await instance.createGameId(Guess.ROCK, stringToHex(secret));
+        
+        var fn = instance.cancelGame(gameId, {from: player2});
+
+        await truffleAssert.reverts(fn,
+                                    'Game does not exist');
     });
 });
