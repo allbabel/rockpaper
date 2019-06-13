@@ -124,6 +124,8 @@ contract RockPaper is Running
         require(g.player2 == msg.sender, 'You need to be player2 to set the guess');
         // Check wager matches
         require(g.wager == wager, 'Wager does not match');
+        // User sends no payment and has insufficient funds in their winnings slot
+        winnings[msg.sender] = winnings[msg.sender].add(msg.value).sub(wager);
         // Is this game complete?
         require(g.plainGuess2 == Guess.NONE, 'Player2 already submitted their move for this game');
 
@@ -131,9 +133,6 @@ contract RockPaper is Running
         g.plainGuess2 = plainGuess;
         // Reset timeout
         g.expires = now + DEADLINE_IN_SECONDS;
-
-        // User sends no payment and has insufficient funds in their winnings slot
-        winnings[msg.sender] = winnings[msg.sender].add(msg.value).sub(wager);
 
         // Emit event of game being completed and now ready to be settled by player1
         emit LogGameCompleted(g.player1, g.player2, g.wager, gameId, g.plainGuess2);
@@ -199,7 +198,6 @@ contract RockPaper is Running
         {
             // Game cancelled and funds sent back
             winnings[g.player1] = winnings[g.player1].add(g.wager);
-            winnings[g.player2] = winnings[g.player2].add(g.wager);
 
             g.wager = 0;
             g.player2 = address(0x0);
